@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ada yang mau aku bilang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fbeef0;--ink:#3a1f33;--soft:#8a5a78;--accent:#e2486b;--accent-ink:#fff;--card:#fff7f8;color-scheme:light;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1735;--ink:#f6eefc;--soft:#b9a6d6;--accent:#ff8fa3;--accent-ink:#2a1230;--card:#262148;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1b1735;--ink:#f6eefc;--soft:#b9a6d6;--accent:#ff8fa3;--accent-ink:#2a1230;--card:#262148;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Fraunces",Georgia,"Times New Roman",serif;overflow:hidden}
+main{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;cursor:pointer}
+main.ask{cursor:default}
+#line{font-size:clamp(1.6rem,6vw,2.6rem);line-height:1.3;max-width:20ch;font-weight:400;min-height:5.2em;display:flex;align-items:center;justify-content:center;transition:opacity .5s}
+#line.out{opacity:0}
+#hint{margin-top:28px;color:var(--soft);font-size:.95rem;font-style:italic;opacity:0;transition:opacity .6s}
+#line div{text-align:center}
+#line.typing div span:first-child::after{content:"";display:inline-block;width:0;height:1em;border-right:2px solid var(--accent);margin-right:-2px;vertical-align:-.1em;animation:blink .8s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+#ask{display:none;flex-direction:column;align-items:center;gap:28px}
+main.ask #ask{display:flex}
+main.ask #story{display:none}
+#ask h1{font-size:clamp(2rem,8vw,3.4rem);font-weight:600;line-height:1.15;margin:0;max-width:14ch}
+.row{display:flex;gap:16px;align-items:center;justify-content:center;min-height:90px;flex-wrap:wrap}
+button,.btn{font:inherit;font-size:1.1rem;border:0;border-radius:999px;padding:14px 30px;cursor:pointer;text-decoration:none;display:inline-block}
+#yes{background:var(--accent);color:var(--accent-ink);font-weight:600;transition:transform .25s}
+#yes:focus-visible,#no:focus-visible,.btn:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+#no{background:transparent;color:var(--soft);border:1.5px solid var(--soft)}
+#no.fly{position:fixed;z-index:5;transition:left .25s,top .25s}
+#win{display:none;flex-direction:column;align-items:center;gap:20px;max-width:30ch}
+main.won #ask,main.won #story{display:none}
+main.won #win{display:flex}
+#win h1{font-size:clamp(2.2rem,9vw,3.6rem);margin:0;font-weight:600}
+#win p{font-size:1.2rem;line-height:1.5;margin:0;color:var(--soft)}
+.btn{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.heart{position:fixed;bottom:-40px;font-size:24px;pointer-events:none;animation:up 4s linear forwards;z-index:9}
+@keyframes up{to{transform:translateY(-110vh) rotate(20deg);opacity:0}}
+@media (prefers-reduced-motion:reduce){.heart{display:none}#line,#hint,#yes,#no.fly{transition:none}}
+</style>
+</head>
+<body>
+<main id="m">
+  <div id="story"><div id="line" class="out"></div><div id="hint">ketuk untuk lanjut</div></div>
+  <div id="ask">
+    <h1 id="q"></h1>
+    <div class="row"><button id="yes">Mau</button><button id="no">Nggak</button></div>
+  </div>
+  <div id="win">
+    <h1>Yeay!</h1>
+    <p id="wintext"></p>
+    <a id="wa" class="btn" target="_blank" rel="noopener" hidden>Kabari aku</a>
+  </div>
+</main>
+<script>
+// ====== UBAH BAGIAN INI ======
+var DIA = "Zhafira";          // nama dia
+var AKU = "Aku";           // namamu
+var WA  = "";              // nomor WhatsApp, format 628123456789 (kosongkan jika tidak mau)
+var LINES = [
+  "Hai, " + DIA + ".",
+  "Ada yang sudah lama mau aku bilang.",
+  "Setiap ngobrol sama kamu, hariku jadi terasa lebih ringan.",
+  "Aku suka cara kamu ketawa, dan cara kamu peduli ke orang lain.",
+  "Aku nggak mau memendamnya lagi."
+];
+var QUESTION = "Mau nggak jadi pacarku?";
+var WINTEXT = "Makasih sudah bilang iya. Aku janji bakal jadi orang yang bikin kamu nyaman. — " + AKU;
+// ==============================
+
+var m = document.getElementById("m"), line = document.getElementById("line"), hint = document.getElementById("hint");
+var yes = document.getElementById("yes"), no = document.getElementById("no");
+var i = 0, busy = false;
+var noTexts = ["Nggak", "Yakin?", "Coba pikir lagi", "Beneran nggak mau?", "Sekali aja…", "Jangan gitu dong"];
+var dodge = 0;
+
+var typing = false, timer = null, finish = function(){};
+var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+function type(t){
+  clearInterval(timer);
+  line.textContent = "";
+  var w = document.createElement("div"), a = document.createElement("span"), b = document.createElement("span");
+  b.style.visibility = "hidden";
+  w.appendChild(a); w.appendChild(b); line.appendChild(w);
+  var n = 0; typing = true;
+  line.classList.add("typing");
+  function done(){
+    clearInterval(timer);
+    a.textContent = t; b.textContent = "";
+    line.classList.remove("typing");
+    typing = false; hint.style.opacity = 1;
+  }
+  finish = done;
+  if (reduce){ done(); return; }
+  b.textContent = t;
+  timer = setInterval(function(){
+    n++;
+    a.textContent = t.slice(0, n);
+    b.textContent = t.slice(n);
+    if (n >= t.length) done();
+  }, 37);
+}
+setTimeout(function(){ line.classList.remove("out"); type(LINES[0]); }, 500);
+
+m.addEventListener("click", function(e){
+  if (m.classList.contains("ask") || m.classList.contains("won") || busy) return;
+  if (typing){ finish(); return; }
+  hint.style.opacity = 0;
+  busy = true; line.classList.add("out");
+  setTimeout(function(){
+    i++;
+    if (i >= LINES.length){
+      m.classList.add("ask");
+      document.getElementById("q").textContent = QUESTION;
+    } else {
+      line.classList.remove("out"); type(LINES[i]);
+      if (i === LINES.length - 1) hint.textContent = "ketuk sekali lagi";
+    }
+    busy = false;
+  }, 450);
+});
+
+function runAway(e){
+  if (e) e.preventDefault();
+  dodge++;
+  no.textContent = noTexts[Math.min(dodge, noTexts.length - 1)];
+  no.classList.add("fly");
+  var w = no.offsetWidth, h = no.offsetHeight;
+  var x = Math.random() * (window.innerWidth - w - 20) + 10;
+  var y = Math.random() * (window.innerHeight - h - 20) + 10;
+  no.style.left = x + "px"; no.style.top = y + "px";
+  yes.style.transform = "scale(" + Math.min(1 + dodge * 0.12, 1.8) + ")";
+}
+no.addEventListener("mouseenter", runAway);
+no.addEventListener("touchstart", runAway, {passive:false});
+no.addEventListener("click", runAway);
+
+yes.addEventListener("click", function(){
+  m.classList.remove("ask"); m.classList.add("won");
+  document.getElementById("wintext").textContent = WINTEXT;
+  if (WA){
+    var a = document.getElementById("wa");
+    a.hidden = false;
+    a.href = "https://wa.me/" + WA + "?text=" + encodeURIComponent("Aku mau 💕");
+  }
+  for (var k = 0; k < 28; k++){
+    (function(k){ setTimeout(function(){
+      var h = document.createElement("span");
+      h.className = "heart";
+      h.textContent = ["💖","💕","💗","🌸"][k % 4];
+      h.style.left = Math.random() * 95 + "vw";
+      h.style.fontSize = (18 + Math.random() * 22) + "px";
+      document.body.appendChild(h);
+      setTimeout(function(){ h.remove(); }, 4200);
+    }, k * 120); })(k);
+  }
+});
+</script>
+</body>
+</html>
